@@ -1,6 +1,8 @@
 # Firmware GRBL Mega 5X — HotWire4X
 
-Notes de configuration et de compilation du firmware fil chaud 4 axes.
+Notes de configuration, de compilation et de versionnement du firmware fil chaud 4 axes.
+
+> Révision : intègre la fréquence PWM 244 Hz (D6), la polarité figée des boutons, le workflow Git (carnet de croquis pointé sur le dépôt) et les notes G93 / safety door.
 
 ## Cible
 
@@ -12,7 +14,7 @@ Notes de configuration et de compilation du firmware fil chaud 4 axes.
 | Machine | découpeuse fil chaud 4 axes, axes `XYZA` |
 | Build | 20260521 |
 
-Principe directeur : on compile depuis la source publique pour garder la maîtrise totale du `cpu_map.h` (broches, PWM, limites), comme sur la SKR Pico en grblHAL. La chauffe sort en **signal logique sur D6** (et non via le MOSFET D8) pour piloter un étage de puissance externe.
+Principe directeur : on compile depuis la source publique pour garder la maîtrise totale du `cpu_map.h` (broches, PWM, limites), comme sur la SKR Pico en grblHAL. La chauffe sort en **signal logique sur D6, à ~244 Hz** (et non via le MOSFET D8) pour piloter un étage de puissance externe.
 
 ---
 
@@ -25,7 +27,7 @@ Principe directeur : on compile depuis la source publique pour garder la maîtri
 | `N_AXIS` | `4` | 4 axes |
 | `N_AXIS_LINEAR` | `4` | tous les axes linéaires (foam cutter) |
 | `SPINDLE_PWM_ON_D8` | **commenté** | on n'utilise pas le MOSFET D8 |
-| `SPINDLE_PWM_ON_D6` | **actif** | chauffe en PWM logique 0-5 V, 8 bits, sur Servo 2 (D6) |
+| `SPINDLE_PWM_ON_D6` | **actif** | chauffe en PWM logique 0-5 V, 8 bits, sur Servo 2 (D6) — fréquence réglée dans `cpu_map.h` |
 | `SPINDLE_PWM_ON_D9` | commenté | — |
 | `HOMING_INIT_LOCK` | **commenté** | démarrage en `Idle` et non en `Alarm` ; `$22` reste pleinement fonctionnel |
 
@@ -36,7 +38,7 @@ Cycle de homing (bloc `#if N_AXIS == 4`) — un seul cycle regroupant les 4 axes
   #define HOMING_CYCLE_0 ((1<<AXIS_1)|(1<<AXIS_2)|(1<<AXIS_3)|(1<<AXIS_4)) // X, Y, Z, A ensemble, arrêt indépendant par axe
 ```
 
-> Important : ne laisser **qu'un seul** cycle. L'ancien `HOMING_CYCLE_0 (1<<AXIS_3)` (Z first) et `HOMING_CYCLE_1 ((1<<AXIS_1)|(1<<AXIS_2))` (X,Y) sont supprimés. Le « Z first to clear workspace » est une logique fraisage sans objet sur un fil chaud.
+> Important : ne laisser **qu'un seul** cycle. L'ancien `HOMING_CYCLE_0 (1<<AXIS_3)` (Z first) et `HOMING_CYCLE_1 ((1<<AXIS_1)|(1<<AXIS_2))` (X,Y) sont supprimés. Le « Z first to clear workspace » est une logique fraisage sans objet sur un fil chaud. L'arrêt indépendant par axe suppose **un contact par axe sur sa propre broche** — c'est le cas (D3/D14/D18/D49).
 
 ### `cpu_map.h`
 
@@ -66,7 +68,35 @@ Boutons (inchangés) — port K, connecteur **AUX-2** :
 | Resume | Cycle start | A11 |
 | (non câblé) | Safety door | A12 |
 
-Sortie chauffe (PWM) : **D6** = signal Servo 2 (0-5 V logique).
+> **Polarité des boutons figée à la compilation.** Contrairement aux fins de course (inversables par `$5`), les entrées de contrôle n'ont **aucun paramètre `$`** d'inversion. Leur polarité est fixée par `INVERT_CONTROL_PIN_MASK` dans `config.h` (par défaut désactivé → boutons **NO**, actifs au niveau bas, pull-up interne). Aucune lettre de `[OPT:]` ne l'expose. Vérification du comportement réel via le champ `Pn:` du report `?` (lettres `R`=Reset, `H`=Feed hold, `S`=Cycle start, `D`=Door) : au repos, **aucune** de ces lettres ne doit apparaître ; un test guidé bouton par bouton confirme la transition appui/relâche.
+
+#### Fréquence PWM de chauffe (bloc D6)
+
+Le prescaler du Timer4 est passé de 1/8 à **1/256** pour obtenir **244 Hz** :
+
+```c
+// Bloc SPINDLE_PWM_ON_D6 (repère : TCCRA à UN SEUL bit WGM (1<<WGM41), TOP=255)
+#define SPINDLE_TCCRB_INIT_MASK ((1<<WGM42) | (1<<WGM43) | (1<<CS42)) // CS42 = 1/256
+#define SPINDLE_OCRA_TOP_VALUE  0xFF  // TOP=255, 8 bits (résolution inchangée)
+```
+
+Calcul : `f = F_CPU / (prescaler × (TOP+1)) = 16e6 / (256 × 256) = 244 Hz`.
+
+Choix justifié : compatible découpe fil chaud polystyrène (la fréquence est indifférente thermiquement, le fil intègre tout ce qui dépasse quelques Hz) **et** optocoupleurs habituels type PC817 (période ~4 ms, fronts propres). La **résolution reste à 255 pas** (changer le prescaler ne touche pas au TOP).
+
+Autres fréquences possibles (même résolution, on ne change que le prescaler dans `SPINDLE_TCCRB_INIT_MASK`) :
+
+| Bits CS | Prescaler | Fréquence |
+|---|---|---|
+| `CS40` | 1/1 | 62,5 kHz |
+| `CS41` | 1/8 | 7,8 kHz |
+| `CS41`+`CS40` | 1/64 | 977 Hz |
+| **`CS42`** | **1/256** | **244 Hz** ← retenu |
+| `CS42`+`CS40` | 1/1024 | 61 Hz |
+
+> ⚠️ **Deux pièges identifiés.** (1) Le firmware contient trois blocs spindle mutuellement exclusifs (`_D8`/`_D6`/`_D9`) ; seul le bloc **D6** est compilé ici. Le distinguer du D8 par `TCCRA_INIT_MASK` : **un seul** bit WGM `(1<<WGM41)` = D6 (8 bits) ; **deux** bits `((1<<WGM40)|(1<<WGM41))` = D8 (16 bits). (2) Le commentaire d'origine « about 1.9 kHz at 1/8 prescaler » sur le bloc D6 est un copier-coller **erroné** du bloc D8 (où TOP=1024 → 1,9 kHz). Sur D6, TOP=255, donc 1/8 donnerait 7,8 kHz, pas 1,9 kHz. Commentaire corrigé dans le fichier.
+
+Vérification : `M3 S500` puis oscilloscope sur D6 → ~244 Hz.
 
 ### `report.c`
 
@@ -95,20 +125,26 @@ Survit à `$RST=*` (contrairement à la chaîne `$I=`). Donne une signature `[BO
 | Bouton E-Stop | AUX-2 | A9 |
 | Bouton Pause | AUX-2 | A10 |
 | Bouton Resume | AUX-2 | A11 |
-| PWM chauffe fil | header Servo 2 | D6 (0-5 V logique) |
+| PWM chauffe fil | header Servo 2 | D6 (0-5 V logique, **244 Hz**) |
 
 Contacts câblés entre Signal et masse (pull-ups internes). Mode NC retenu (`$5=1`) : fil coupé = alarme.
 
 ---
 
-## 3. Méthode de compilation (Arduino IDE)
+## 3. Notes firmware diverses
+
+**Modes d'avance G93 / G94.** Aucune option de compilation : ce sont des modes du parseur g-code, **toujours disponibles**. Au boot (et après reset) le firmware est en **G94** (unités/min) ; il bascule en **G93** (inverse time) dès qu'une ligne `G93` est reçue. En G93, chaque `G1/G2/G3` doit porter un mot `F`. C'est le sender (HotWire4X) qui décide ; rien à régler dans le firmware.
+
+**Safety door (A12, non câblé).** Entrée d'interverrouillage de capot : à l'ouverture, Grbl passe en état `DOOR`, décélère, **coupe broche et coolant**, et reprend sur Cycle start une fois refermé. Comportement volontairement **inverse** du feed hold (qui, lui, laisse la chauffe active pendant la pause). Inutile sur une machine fil chaud ouverte → laissée non câblée (pull-up interne, jamais déclenchée).
+
+---
+
+## 4. Méthode de compilation (Arduino IDE)
 
 1. Installer **l'Arduino IDE** (inclut avr-gcc + avrdude + support Mega 2560).
 2. Récupérer les sources : `fra589/grbl-Mega-5X` → `<> Code` → *Download ZIP*, puis dézipper. Le code est dans le sous-dossier **`grbl/`**.
 3. Appliquer les modifications ci-dessus dans `grbl/config.h`, `grbl/cpu_map.h`, `grbl/report.c`.
-4. Importer la bibliothèque — deux options :
-   - **Recommandé pour itérer** : copier directement le dossier `grbl` dans `Documents/Arduino/libraries/` (→ `libraries/grbl/`), éditer sur place, recompiler. Pas de re-zippage à chaque essai.
-   - **Add .ZIP Library** : zipper le **dossier `grbl`** lui-même (pas son contenu en vrac) en `grbl.zip`, puis `Croquis → Inclure une bibliothèque → Ajouter la bibliothèque .ZIP`. (Supprimer toute ancienne bibliothèque grbl au préalable.)
+4. Rendre la bibliothèque visible par l'IDE — pour le développement versionné, voir la **section 6** (carnet de croquis pointé directement sur le dépôt). À défaut, copier le dossier `grbl` dans `…/Arduino/libraries/`, ou l'importer zippé (zipper le **dossier** `grbl`, pas son contenu en vrac).
 5. Ouvrir l'exemple `Fichier → Exemples → grbl → GrblUpload` (ne pas modifier le `.ino`).
 6. `Outils → Type de carte → Arduino Mega or Mega 2560`, processeur `ATmega2560`, puis sélectionner le port.
 7. **Téléverser**.
@@ -122,7 +158,7 @@ Renommable en `firmware-mega2560.hex` pour distribution/flash via XLoader.
 
 ---
 
-## 4. Réglages runtime après flash (paramètres `$`, pas des fichiers)
+## 5. Réglages runtime après flash (paramètres `$`, pas des fichiers)
 
 Obligatoire d'abord (changement de `N_AXIS`) :
 
@@ -143,9 +179,50 @@ Puis :
 | `$27` | — | pull-off |
 | `$130`–`$133` | — | courses max X / Y / Z / A |
 
+**Distribution / cohérence EEPROM.** Le flash ne touche pas l'EEPROM ; `$RST=*` est nécessaire après tout changement de `N_AXIS` (réalignement des blocs par axe). Pour un firmware distribué : incrémenter `SETTINGS_VERSION` (`settings.h`) à chaque changement de disposition EEPROM force l'auto-restauration au 1er boot ; soigner les `DEFAULT_*` (`defaults.h`). Côté HotWire4X : à la connexion, comparer un sous-ensemble **critique** de `$$` (géométrie + sécurité : `$100-$103`, `$110-$113`, `$120-$123`, `$130-$133`, `$5/$20/$21/$22/$23`) au profil attendu ; en cas d'écart, **désactiver la découpe** et imposer la validation manuelle via l'écran de paramétrage (pas d'écrasement à l'aveugle). Distinguer « mismatch lisible » (→ écran de diff) de « EEPROM illisible / version incohérente » (→ `$RST=*` puis push profil). Relire `$$` après écriture avant de réactiver la découpe.
+
 ---
 
-## 5. Identification du firmware (`$I`)
+## 6. Environnement de développement et versionnement
+
+Objectif : un **seul exemplaire physique** des sources, servant à la fois de dépôt Git et de carnet de croquis Arduino, hors OneDrive.
+
+**Organisation retenue.** Le dépôt vit dans `C:\Github\grbl-Mega5X-HotWire4X-ri` (hors OneDrive → `.git` à l'abri de la synchro, qui peut corrompre un `.git`). On y fait pointer **directement le carnet de croquis** de l'IDE Arduino, **sans jonction** : `Fichier → Préférences → Emplacement du carnet de croquis` → `C:\Github\grbl-Mega5X-HotWire4X-ri`. L'IDE cherche alors ses bibliothèques dans le sous-dossier `libraries\` de ce dépôt.
+
+Arborescence requise (le carnet de croquis impose ce niveau `libraries\<nom>\`) :
+
+```
+C:\Github\grbl-Mega5X-HotWire4X-ri\   ← carnet de croquis ET dépôt Git
+└── libraries\
+    └── grbl\
+        ├── config.h, cpu_map.h, grbl.h, report.c, …
+        └── examples\
+            └── GrblUpload\
+                └── GrblUpload.ino
+```
+
+Si `Fichier → Exemples → grbl → GrblUpload` apparaît et compile, la structure est bonne. Le seul piège serait de poser les fichiers `grbl` à la racine du dépôt sans le niveau `libraries\grbl\`.
+
+**Limite à connaître.** Le carnet de croquis est global à l'IDE : cette approche est valable tant qu'il n'y a **qu'un seul projet** de bibliothèque. Pour gérer plusieurs dépôts en parallèle plus tard, il faudra soit les faire cohabiter dans ce `libraries\`, soit basculer vers une jonction (`mklink /J`) par projet.
+
+Édition à l'IDE Arduino **ou** via VS Code ouvert sur `C:\Github\grbl-Mega5X-HotWire4X-ri` (même contenu). L'IDE compile/flashe ; GitHub Desktop versionne le même dossier.
+
+`.gitignore` suggéré — ici Git versionne **tout le carnet de croquis**, pas seulement `grbl`, donc on filtre aussi les éventuels dossiers créés par l'IDE :
+```gitignore
+build/
+*.elf
+*.o
+.vscode/
+# hardware/   # si l'IDE crée des sous-dossiers parasites
+# *.hex       # décommenter si on ne veut pas versionner de binaire ;
+#             # sinon garder release/firmware-mega2560.hex pour distribution
+```
+
+**Licence (GPLv3).** Ce dépôt est un dérivé de grbl-Mega-5X : conserver les en-têtes de licence et l'attribution à fra589, et lister les modifications dans le `README` (PWM D6 244 Hz, limites D49, `[BOARD:]`, homing 4 axes). Distribuer le binaire impose de rendre la source disponible — un dépôt public satisfait cette obligation.
+
+---
+
+## 7. Identification du firmware (`$I`)
 
 Réponse attendue :
 
