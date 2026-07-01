@@ -10,7 +10,7 @@ Arduino : **Croquis ▸ Exporter les binaires compilés**, puis copie du fichier
 (`grblUpload/build/arduino.avr.mega/grblUpload.ino.hex`) ici sous un nom parlant.
 
 - **Carte cible :** Arduino Mega 2560 + shield RAMPS 1.4
-- **Version firmware :** `1.2i` build `20260521` (`GRBL_VERSION` / `GRBL_VERSION_BUILD` dans `libraries/grbl/grbl.h`)
+- **Version firmware :** `1.2i` build `20260701` (`GRBL_VERSION` / `GRBL_VERSION_BUILD` dans `libraries/grbl/grbl.h`)
 - **Variante fournie :** `.hex` **sans bootloader** → à flasher via **XLoader** ou **avrdude**
   (le bootloader Mega d'origine est conservé).
 
@@ -20,7 +20,7 @@ Arduino : **Croquis ▸ Exporter les binaires compilés**, puis copie du fichier
 grbl-Mega5X-HotWire4X-ri_v<version>-<build>.hex
 ```
 
-Exemple : `grbl-Mega5X-HotWire4X-ri_v1.2i-20260521.hex`
+Exemple : `grbl-Mega5X-HotWire4X-ri_v1.2i-20260701.hex`
 
 ## Régénérer / mettre à jour
 

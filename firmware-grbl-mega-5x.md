@@ -12,7 +12,7 @@ Notes de configuration, de compilation et de versionnement du firmware fil chaud
 | Firmware | grbl-Mega-5X (fork **fra589**), rapporte `Grbl 1.2i` |
 | Source | dépôt canonique `fra589/grbl-Mega-5X` (compilé soi-même, **pas** le binaire RcKeith) |
 | Machine | découpeuse fil chaud 4 axes, axes `XYZA` |
-| Build | 20260521 |
+| Build | 20260701 |
 
 Principe directeur : on compile depuis la source publique pour garder la maîtrise totale du `cpu_map.h` (broches, PWM, limites), comme sur la SKR Pico en grblHAL. La chauffe sort en **signal logique sur D6, à ~244 Hz** (et non via le MOSFET D8) pour piloter un étage de puissance externe.
 
@@ -240,7 +240,7 @@ Réponse attendue :
 
 ```
 [BOARD:RAMPS 1.4 - HotWire4X PWM-D6 - R.ILTIS]
-[VER:1.2i.20260521:]
+[VER:1.2i.20260701:]
 [AXS:4:XYZA]
 [OPT:VNMGHL,35,255,xx]
 ok
