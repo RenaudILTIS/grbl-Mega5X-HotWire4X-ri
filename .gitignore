@@ -1,2 +1,5 @@
 # Artefacts de compilation Arduino (cache + exports "Exporter les binaires compilés")
 build/
+
+# Sauvegardes d'éditeur
+*.bak
