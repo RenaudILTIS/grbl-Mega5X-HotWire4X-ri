@@ -98,6 +98,18 @@ Autres fréquences possibles (même résolution, on ne change que le prescaler d
 
 Vérification : `M3 S500` puis oscilloscope sur D6 → ~244 Hz.
 
+### `defaults.h`
+
+Fonctions de sécurité **désactivées par défaut** (valeurs de première mise sous tension, upstream à `1`) :
+
+| Réglage | Valeur | Rôle |
+|---|---|---|
+| `DEFAULT_HOMING_ENABLE` | `0` | pas de homing au boot |
+| `DEFAULT_SOFT_LIMIT_ENABLE` | `0` | soft limits off |
+| `DEFAULT_HARD_LIMIT_ENABLE` | `0` | hard limits off |
+
+Sur cette découpeuse fil chaud amateur, la mise à l'origine se fait **à la main** (déplacement des chariots) : pas de séquence de homing par défaut. Les soft limits n'ayant de sens qu'après un homing (position absolue connue), les trois sont désactivés ensemble par cohérence. Ce ne sont que des **défauts** de première mise sous tension : ils restent activables à chaud via `$22` (homing), `$20` (soft limits) et `$21` (hard limits) — cf. §5 — sans recompiler, et sont modifiables depuis HotWire4X.
+
 ### `report.c`
 
 Ligne d'identification ajoutée en tête de `report_build_info()` (juste après le bloc `SORT_REPORT_BY_AXIS_NAME`, avant le `[VER:]`) :
