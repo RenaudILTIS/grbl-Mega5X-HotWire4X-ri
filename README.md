@@ -1,3 +1,25 @@
+# grbl Mega-5X for Mega 2560 + RAMPS 1.4 — HotWire4X edition
+
+**EN** — Grbl Mega-5X firmware for the Arduino Mega 2560 with a RAMPS 1.4 shield, set up for
+4-axis hot wire CNC cutting with [HotWire4X](https://hotwire4x.com).
+
+Ready-to-flash file: **`grbl-Mega5X-HotWire4X.hex`** in the
+**[latest release](https://github.com/RenaudILTIS/grbl-Mega5X-HotWire4X-ri/releases/latest)**.
+Wiring and flashing, step by step: [hotwire4x.com/requirements/ramps](https://hotwire4x.com/requirements/ramps).
+
+Based on [grbl-Mega-5X](https://github.com/fra589/grbl-Mega-5X) by Gauthier Brière, under the
+GNU GPL v3 (see `COPYING`). This repository holds the complete source of the published builds.
+
+**FR** — Firmware Grbl Mega-5X pour Arduino Mega 2560 avec shield RAMPS 1.4, configuré pour la
+découpe CNC par fil chaud 4 axes avec [HotWire4X](https://hotwire4x.com/fr). Fichier prêt à
+flasher : **`grbl-Mega5X-HotWire4X.hex`**, dans la
+**[dernière release](https://github.com/RenaudILTIS/grbl-Mega5X-HotWire4X-ri/releases/latest)**.
+Câblage et flashage pas à pas : [hotwire4x.com/fr/prerequis/ramps](https://hotwire4x.com/fr/prerequis/ramps).
+Licence GNU GPL v3 (voir `COPYING`). La suite de ce document est la documentation technique,
+en français.
+
+---
+
 # grbl-Mega5X-HotWire4X-ri
 
 Firmware **GRBL Mega‑5X** personnalisé pour une utilisation en **fil chaud** (hot wire)

@@ -22,6 +22,13 @@ grbl-Mega5X-HotWire4X-ri_v<version>-<build>.hex
 
 Exemple : `grbl-Mega5X-HotWire4X-ri_v1.2i-20260701.hex`
 
+## Publication
+
+Chaque version est aussi publiée en **release GitHub**, sous le nom stable
+`grbl-Mega5X-HotWire4X.hex` (sans numéro de version) : l'adresse
+`…/releases/latest/download/grbl-Mega5X-HotWire4X.hex`, citée par le site hotwire4x.com,
+suit ainsi toujours la dernière version. Le tag de la release reprend `v<version>-<build>`.
+
 ## Régénérer / mettre à jour
 
 1. Compiler le croquis `grblUpload` dans l'IDE (carte *Arduino Mega or Mega 2560*, proc. *ATmega2560*).
